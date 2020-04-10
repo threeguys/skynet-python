@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-__all__ = [ 'trainer', 'generator' ]
+__all__ = [ 'trainer', 'generator', 'common' ]
 
 import skynet.seq2seq.trainer
 import skynet.seq2seq.generator

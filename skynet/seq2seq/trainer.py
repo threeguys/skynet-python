@@ -20,24 +20,7 @@ import numpy as np
 import argparse
 import json
 
-#
-# Creates a vocabulary from the input text
-# The total vocabulary is the unique set of characters and in addition, this function
-# generates the folloing return values: vocab, char2idx, idx2char, encoded_text
-#
-#   vocab - sorted list of all unique characters the model can understand/speak
-#   char2idx - map of character to its integer representation
-#   idx2char - map of integer representations back to their corresponding characters
-#   encoded_text - corpus text, encoded using integers according to the maps
-#
-def create_vocabulary(text):
-    vocab = sorted(set(text))
-    print('{} unique characters'.format(len(vocab)))
-    char2idx = { u: i for i, u in enumerate(vocab) }
-    idx2char = np.array(vocab)
-    
-    encoded_text = np.array([char2idx[c] for c in text])
-    return vocab, char2idx, idx2char, encoded_text
+from .common import create_vocabulary, write_config, write_corpus, write_vocab, write_charmap, build_gru_model
 
 # Batches up the input into 100 character sequences for training
 # Returns: encoded text, broken into sequences of length 100
@@ -48,14 +31,6 @@ def generate_sequences(text, text_as_int, idx2char):
     
     sequences = char_dataset.batch(seq_length+1, drop_remainder=True)
     return sequences
-
-# Creates a GRU model, based on https://www.tensorflow.org/tutorials/text/text_generation
-def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
-    return tf.keras.Sequential([
-        tf.keras.layers.Embedding(vocab_size, embedding_dim, batch_input_shape=[ batch_size, None ]),
-        tf.keras.layers.GRU(rnn_units, return_sequences=True, stateful=True, recurrent_initializer='glorot_uniform'),
-        tf.keras.layers.Dense(vocab_size)
-    ])
 
 # Duplicates a single chunk into two separate lists, offset by
 # one character for training. We are trying to make the model predict what the
@@ -111,20 +86,6 @@ def fit_model(model, dataset, checkpoint_dir, start_epoch=None, end_epoch=10):
 
     return tf.train.latest_checkpoint(checkpoint_dir)
 
-def write_training_config(model_dir, config):
-    # Save the configuration
-    config_path = os.path.join(model_dir, 'model.json')
-    with open(config_path, 'wt') as config_file:
-        json.dump(config, config_file)
-    print('Wrote config to %s' % config_path)
-
-def write_raw_text(model_dir, raw_text):
-    raw_path = os.path.join(model_dir, 'corpus.text')
-    if not os.path.isfile(raw_path):
-        with open(raw_path, 'wb') as raw_file:
-            raw_file.write(raw_text.encode('utf-8'))
-        print('Wrote text to %s' % raw_path)
-
 def train_model(model_name, raw_text, buffer_size, batch_size, embedding_dim, rnn_units, epochs):
     model_dir = os.path.join(os.getcwd(), model_name)
     checkpoint_dir = os.path.join(model_dir, 'checkpoints')
@@ -138,7 +99,7 @@ def train_model(model_name, raw_text, buffer_size, batch_size, embedding_dim, rn
     # Split dataset into batches for training
     sequences, dataset = prepare_dataset(raw_text, encoded_text, idx2char, buffer_size, batch_size)
     # Setup the tf model
-    model = build_model(len(vocab), embedding_dim, rnn_units, batch_size)
+    model = build_gru_model(len(vocab), embedding_dim, rnn_units, batch_size)
 
     if os.path.isdir(checkpoint_dir):
         latest_chkpt = tf.train.latest_checkpoint(checkpoint_dir)
@@ -165,14 +126,13 @@ def train_model(model_name, raw_text, buffer_size, batch_size, embedding_dim, rn
         'buffer': buffer_size,
         'embedding': embedding_dim,
         'rnn': rnn_units,
-        'epochs': epochs,
-        'vocab': vocab,
-        'char2idx': char2idx,
-        'idx2char': list(idx2char)
+        'epochs': epochs
     }
 
-    write_training_config(model_dir, config)
-    write_raw_text(model_dir, raw_text)
+    write_config(model_dir, config)
+    write_corpus(model_dir, raw_text)
+    write_vocab(model_dir, vocab)
+    write_charmap(model_dir, char2idx)
 
     # Should delete old checkpoint files here
 

@@ -21,21 +21,7 @@ import fileinput
 import tensorflow as tf
 import numpy as np
 
-def create_vocabulary(text):
-    vocab = sorted(set(text))
-    print('{} unique characters'.format(len(vocab)))
-    char2idx = { u: i for i, u in enumerate(vocab) }
-    idx2char = np.array(vocab)
-    
-    text_as_int = np.array([char2idx[c] for c in text])
-    return vocab, char2idx, idx2char, text_as_int
-
-def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
-    return tf.keras.Sequential([
-        tf.keras.layers.Embedding(vocab_size, embedding_dim, batch_input_shape=[batch_size, None]),
-        tf.keras.layers.GRU(rnn_units, return_sequences=True, stateful=True, recurrent_initializer='glorot_uniform'),
-        tf.keras.layers.Dense(vocab_size)
-    ])
+from .common import read_config, read_corpus, create_vocabulary, build_gru_model
 
 def generate_text(model, start_string, char2idx, idx2char, num_generate=1000, temperature=1.0):
     # Evaluation step (generating text using the learned model)
@@ -71,16 +57,6 @@ def generate_text(model, start_string, char2idx, idx2char, num_generate=1000, te
 
     return ''.join(text_generated)
 
-def read_config(model_dir):
-    config_path = os.path.join(model_dir, 'model.json')
-    with open(config_path, 'rt') as config_file:
-        return json.load(config_file)
-
-def read_raw_text(model_dir):
-    raw_path = os.path.join(model_dir, 'corpus.text')
-    with open(raw_path, 'rb') as raw_file:
-        return raw_file.read().decode('utf-8')
-
 def load_model(model_name):
     model_dir = os.path.join(os.getcwd(), model_name)
 
@@ -89,7 +65,7 @@ def load_model(model_name):
     rnn_units = config['rnn']
 
     # Read in all of the text into a single line
-    raw_text = read_raw_text(model_dir)
+    raw_text = read_corpus(model_dir)
     vocab, char2idx, idx2char, encoded_text = create_vocabulary(raw_text)
     # vocab = config['vocab']
     # char2idx = config['char2idx']
@@ -103,19 +79,28 @@ def load_model(model_name):
     print('Embedding dim: %d' % embedding_dim)
     print('RNN Units: %d' % rnn_units)
 
-    model = build_model(len(vocab), embedding_dim, rnn_units, 1)
+    model = build_gru_model(len(vocab), embedding_dim, rnn_units, 1)
     latest_chkpt = tf.train.latest_checkpoint(checkpoint_dir)
     print('Loading checkpoints: %s' % latest_chkpt)
     model.load_weights(latest_chkpt)
     model.build(tf.TensorShape([1, None]))
     return model, char2idx, idx2char
 
+def drop_fragment(text):
+    idx = max([text.rfind('.'), text.rfind('?'), text.rfind('!')])
+    if idx < len(text)-1 and idx > 0:
+        return text[:idx+1]
+    elif idx < 0:
+        return ''
+    else:
+        return text
+
 class Generator:
     def __init__(self, model_name):
         self.model, self.char2idx, self.idx2char = load_model(model_name)
 
     def generate(self, length=1000, seed=None):
-        return generate_text(self.model, seed, self.char2idx, self.idx2char, length)
+        return drop_fragment(generate_text(self.model, seed, self.char2idx, self.idx2char, length))
 
 def generate_rnn(input_args=sys.argv):
     parser = argparse.ArgumentParser()
