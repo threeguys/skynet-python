@@ -1,0 +1,10 @@
+FROM tensorflow/tensorflow:2.1.0-py3
+
+RUN apt update && apt get install python3-pip
+RUN pip3 install praw numpy sagemaker-containers
+
+RUN mkdir /app
+COPY skynet/ /opt/ml/code/skynet
+COPY train_sagemaker.py /opt/ml/code/train_sagemaker.py
+
+ENV SAGEMAKER_PROGRAM train_sagemaker.py

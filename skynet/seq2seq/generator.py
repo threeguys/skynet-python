@@ -17,6 +17,7 @@ import sys
 import json
 import argparse
 import fileinput
+import re
 
 import tensorflow as tf
 import numpy as np
@@ -27,7 +28,8 @@ def generate_text(model, start_string, char2idx, idx2char, num_generate=1000, te
     # Evaluation step (generating text using the learned model)
 
     # Converting our start string to numbers (vectorizing)
-    input_eval = [char2idx[s] for s in start_string]
+    # We're going to be nice and skip any input that's not in our vocab
+    input_eval = [char2idx[s] for s in filter(lambda x: x in char2idx, start_string)]
     input_eval = tf.expand_dims(input_eval, 0)
 
     # Empty string to store our results
@@ -87,11 +89,11 @@ def load_model(model_name):
     return model, char2idx, idx2char
 
 def drop_fragment(text):
-    idx = max([text.rfind('.'), text.rfind('?'), text.rfind('!')])
+    idx = max([m.span()[1] for m in re.finditer(r'[.?!]', text)] + [-1])
     if idx < len(text)-1 and idx > 0:
         return text[:idx+1]
     elif idx < 0:
-        return ''
+        return text + '.'
     else:
         return text
 

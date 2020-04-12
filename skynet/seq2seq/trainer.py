@@ -24,8 +24,7 @@ from .common import create_vocabulary, write_config, write_corpus, write_vocab, 
 
 # Batches up the input into 100 character sequences for training
 # Returns: encoded text, broken into sequences of length 100
-def generate_sequences(text, text_as_int, idx2char):
-    seq_length = 100
+def generate_sequences(text, text_as_int, idx2char, seq_length):
     examples_per_epoch = len(text)
     char_dataset = tf.data.Dataset.from_tensor_slices(text_as_int)
     
@@ -41,8 +40,8 @@ def split_input_target(chunk):
     return input_text, target_text
 
 # Helper to package up the text into a tensor dataset
-def prepare_dataset(raw_text, encoded_text, idx2char, buffer_size, batch_size, drop_remainder=True):
-    sequences = generate_sequences(raw_text, encoded_text, idx2char)
+def prepare_dataset(raw_text, encoded_text, idx2char, buffer_size, batch_size, seq_length, drop_remainder=True):
+    sequences = generate_sequences(raw_text, encoded_text, idx2char, seq_length)
     dataset = sequences.map(split_input_target)
     dataset = dataset.shuffle(buffer_size).batch(batch_size, drop_remainder=True)
     return sequences, dataset
@@ -86,18 +85,22 @@ def fit_model(model, dataset, checkpoint_dir, start_epoch=None, end_epoch=10):
 
     return tf.train.latest_checkpoint(checkpoint_dir)
 
-def train_model(model_name, raw_text, buffer_size, batch_size, embedding_dim, rnn_units, epochs):
-    model_dir = os.path.join(os.getcwd(), model_name)
+def train_model(model_name, input_path, output_path, buffer_size, batch_size, seq_length, embedding_dim, rnn_units, epochs):
+
+    with open(input_path, 'rb') as input_file:
+        raw_text = ' '.join([line.decode('utf-8').rstrip() for line in input_file])
+
+    model_dir = os.path.join(output_path, model_name)
     checkpoint_dir = os.path.join(model_dir, 'checkpoints')
 
-    steps_per_epoch = int(len(raw_text) / (batch_size * 100)) # batch_size * sequence length
+    steps_per_epoch = int(len(raw_text) / (batch_size * seq_length)) # batch_size * sequence length
     if steps_per_epoch <= 0:
         raise ValueError('Invalid steps per epoch: %d somethin aint right!' % steps_per_epoch)
 
     # Create the vocab and encode the text
     vocab, char2idx, idx2char, encoded_text =  create_vocabulary(raw_text)
     # Split dataset into batches for training
-    sequences, dataset = prepare_dataset(raw_text, encoded_text, idx2char, buffer_size, batch_size)
+    sequences, dataset = prepare_dataset(raw_text, encoded_text, idx2char, buffer_size, batch_size, seq_length)
     # Setup the tf model
     model = build_gru_model(len(vocab), embedding_dim, rnn_units, batch_size)
 
@@ -107,7 +110,7 @@ def train_model(model_name, raw_text, buffer_size, batch_size, embedding_dim, rn
             print('Found checkpoint: %s loading weights...' % latest_chkpt)
             chkpt = model.load_weights(latest_chkpt)
             # chkpt.assert_consumed()
-            model.build(tf.TensorShape([64, 100]))
+            model.build(tf.TensorShape([batch_size, seq_length]))
             # re.search('epoch-([0-9]+)-.*', latest_chkpt)
 
     compile_model(model, dataset)
@@ -125,6 +128,7 @@ def train_model(model_name, raw_text, buffer_size, batch_size, embedding_dim, rn
         'batch': batch_size,
         'buffer': buffer_size,
         'embedding': embedding_dim,
+        'seq': seq_length,
         'rnn': rnn_units,
         'epochs': epochs
     }
@@ -134,7 +138,17 @@ def train_model(model_name, raw_text, buffer_size, batch_size, embedding_dim, rn
     write_vocab(model_dir, vocab)
     write_charmap(model_dir, char2idx)
 
-    # Should delete old checkpoint files here
+def isdir_arg(path):
+    if os.path.isdir(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(f"readable_dir:{path} is not a valid directory")
+
+def isfile_arg(path):
+    if os.path.isfile(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError(f"readable_file:{path} is not a valid file")
 
 def train_rnn(input_args=sys.argv):
     parser = argparse.ArgumentParser(description='train seq2seq RNN network based on text input')
@@ -144,9 +158,16 @@ def train_rnn(input_args=sys.argv):
     parser.add_argument('--type', default='rnn', action='store', help='type of model (rnn|?)')
     parser.add_argument('--dim', default=256, type=int, action='store', help='embedding dimension')
     parser.add_argument('--units', default=1024, type=int, action='store', help='rnn units')
+    parser.add_argument('--seq', default=100, type=int, action='store', help='sequence length')
     parser.add_argument('--epochs', default=10, type=int, action='store', help='number of epochs to train')
-    parser.add_argument('--input', required=True, type=argparse.FileType('r', encoding='UTF-8'), action='store', help='input corpus text (-) for stdin')
+    parser.add_argument('--input', required=True, type=isfile_arg, action='store', help='input corpus text (-) for stdin')
+    parser.add_argument('--output', required=True, type=isdir_arg, default='/opt/ml/model', action='store', help='output path to write model files')
     args = parser.parse_args(input_args)
 
-    raw_text = ' '.join([line.rstrip() for line in args.input])
-    train_model(args.name, raw_text, args.buffer, args.batch, args.dim, args.units, args.epochs)
+    train_model(args.name,
+                args.input, args.output, args.buffer,
+                args.batch, args.seq,
+                args.dim, args.units, args.epochs)
+
+if __name__ == '__main__':
+    train_rnn()
