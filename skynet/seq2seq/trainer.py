@@ -147,8 +147,15 @@ def isdir_arg(path):
 def isfile_arg(path):
     if os.path.isfile(path):
         return path
-    else:
-        raise argparse.ArgumentTypeError(f"readable_file:{path} is not a valid file")
+    elif os.path.isdir(path):
+        print('Found path: %s' % path)
+        for root, dirs, files in os.walk(path, topdown=False):
+            for name in files:
+                print(os.path.join(root, name))
+            for name in dirs:
+                print(os.path.join(root, name))
+
+    raise argparse.ArgumentTypeError(f"readable_file:{path} is not a valid file")
 
 def train_rnn(input_args=sys.argv):
     parser = argparse.ArgumentParser(description='train seq2seq RNN network based on text input')
