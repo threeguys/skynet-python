@@ -157,7 +157,7 @@ def isfile_arg(path):
 
     raise argparse.ArgumentTypeError(f"readable_file:{path} is not a valid file")
 
-def train_rnn(input_args=sys.argv):
+def train_rnn(input_args=None):
     parser = argparse.ArgumentParser(description='train seq2seq RNN network based on text input')
     parser.add_argument('--name', required=True, action='store', help='name of the model')
     parser.add_argument('--batch', default=64, type=int, action='store', help='batch size')
@@ -168,8 +168,11 @@ def train_rnn(input_args=sys.argv):
     parser.add_argument('--seq', default=100, type=int, action='store', help='sequence length')
     parser.add_argument('--epochs', default=10, type=int, action='store', help='number of epochs to train')
     parser.add_argument('--input', required=True, type=isfile_arg, action='store', help='input corpus text (-) for stdin')
-    parser.add_argument('--output', required=True, type=isdir_arg, default='/opt/ml/model', action='store', help='output path to write model files')
-    args = parser.parse_args(input_args)
+    parser.add_argument('--output', required=True, type=isdir_arg, default='/opt/ml/output/data', action='store', help='output path to write model files')
+    if input_args is not None:
+        args = parser.parse_args(input_args)
+    else:
+        args = parser.parse_args()
 
     train_model(args.name,
                 args.input, args.output, args.buffer,
