@@ -1,16 +1,27 @@
 version: 0.2
 
+env:
+  variables:
+    IMAGE_REPO_NAME: 'threeguys/images'
+    IMAGE_TAG: 'skynet-python'
+    DOCKEFILE_NAME: 'Dockerfile.sagemaker'
+
 phases:
   pre_build:
     commands:
-      - echo Logging in to Amazon ECR...
-      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+      - echo Retrieving AWS account id...
+      - AWS_ACCOUNT_ID=$(aws --region $AWS_DEFAULT_REGION sts --endpoint-url https://sts.$AWS_DEFAULT_REGION.amazonaws.com get-caller-identity --query 'Account' --output text)
+
   build:
     commands:
-      - echo Build started on `date`
-      - echo Building the Docker image...          
-      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG -f Dockerfile.sagemaker .
-      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG      
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin 763104351884.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - echo Docker build started on `date`
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG -f $DOCKERFILE_NAME .
+
+      - echo Tagging ECR image, retrieving login...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+
   post_build:
     commands:
       - echo Build completed on `date`
