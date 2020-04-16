@@ -15,14 +15,13 @@ phases:
       - echo IMAGE_TAG = $IMAGE_TAG
       - echo DOCKERFILE_NAME = $DOCKERFILE_NAME
       - echo AWS_ACCOUNT_ID = $AWS_ACCOUNT_ID
-      - echo $AWS_DEFAULT_REGION = $AWS_DEFAULT_REGION
+      - echo AWS_DEFAULT_REGION = $AWS_DEFAULT_REGION
 
   build:
     commands:
-      # This is an ugly hack but my 
-      - aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 763104351884.dkr.ecr.us-west-2.amazonaws.com
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin 763104351884.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
       - echo Docker build started on `date`
-      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG -f $DOCKERFILE_NAME .
+      - docker build --build-arg AWS_REGION=$AWS_DEFAULT_REGION -t $IMAGE_REPO_NAME:$IMAGE_TAG -f $DOCKERFILE_NAME .
 
       - echo Tagging ECR image, retrieving login...
       - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)

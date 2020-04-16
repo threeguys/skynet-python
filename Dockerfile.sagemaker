@@ -1,4 +1,6 @@
-FROM 763104351884.dkr.ecr.us-west-2.amazonaws.com/tensorflow-training:2.1.0-gpu-py36-cu101-ubuntu18.04
+ARG AWS_REGION=us-west-2
+
+FROM 763104351884.dkr.ecr.${AWS_REGION}.amazonaws.com/tensorflow-training:2.1.0-gpu-py36-cu101-ubuntu18.04
 
 RUN apt update && apt-get install -y python3-pip \
          && rm -rf /var/lib/apt/lists/*
