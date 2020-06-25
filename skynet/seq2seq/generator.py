@@ -59,8 +59,8 @@ def generate_text(model, start_string, char2idx, idx2char, num_generate=1000, te
 
     return ''.join(text_generated)
 
-def load_model(model_name):
-    model_dir = os.path.join(os.getcwd(), model_name)
+def load_model(model_name, root=None):
+    model_dir = os.path.join(os.getcwd() if root is None else root, model_name)
 
     config = read_config(model_dir)
     embedding_dim = config['embedding']
@@ -98,8 +98,8 @@ def drop_fragment(text):
         return text
 
 class Generator:
-    def __init__(self, model_name):
-        self.model, self.char2idx, self.idx2char = load_model(model_name)
+    def __init__(self, model_name, root=None):
+        self.model, self.char2idx, self.idx2char = load_model(model_name, root)
 
     def generate(self, length=1000, seed=None):
         return drop_fragment(generate_text(self.model, seed, self.char2idx, self.idx2char, length))
